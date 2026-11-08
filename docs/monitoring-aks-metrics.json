@@ -1,0 +1,35 @@
+[
+  {
+    "metric": {
+      "__name__": "learningsteps_database_up",
+      "instance": "10.42.0.11:8000",
+      "job": "learningsteps"
+    },
+    "value": [
+      1794148429.799,
+      "1"
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "learningsteps_database_up",
+      "instance": "10.42.0.14:8000",
+      "job": "learningsteps"
+    },
+    "value": [
+      1794148429.799,
+      "1"
+    ]
+  },
+  {
+    "metric": {
+      "__name__": "learningsteps_database_up",
+      "instance": "10.42.0.26:8000",
+      "job": "learningsteps"
+    },
+    "value": [
+      1794148429.799,
+      "1"
+    ]
+  }
+]

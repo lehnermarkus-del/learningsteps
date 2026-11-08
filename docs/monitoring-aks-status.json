@@ -1,0 +1,24 @@
+{
+  "pods": [
+    {
+      "name": "monitoring-grafana-646657f94f-nh9z7",
+      "containers_ready": 3,
+      "phase": "Running",
+      "containers": 3
+    },
+    {
+      "name": "monitoring-kube-prometheus-operator-64547cf5d8-265bw",
+      "containers_ready": 1,
+      "phase": "Running",
+      "containers": 1
+    },
+    {
+      "name": "prometheus-monitoring-kube-prometheus-prometheus-0",
+      "containers_ready": 2,
+      "phase": "Running",
+      "containers": 2
+    }
+  ],
+  "namespace": "monitoring",
+  "timestamp": "2026-11-08T15:31:19.4018373+01:00"
+}

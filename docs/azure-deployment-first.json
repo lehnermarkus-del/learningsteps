@@ -1,0 +1,9 @@
+{
+  "version_matches": true,
+  "timestamp": "2026-11-08T15:33:05.4087881+01:00",
+  "expected_commit": "1c40845173f190cec54e8241980b6721cce8b9a4",
+  "live": {
+    "status": "ok",
+    "version": "1c40845173f190cec54e8241980b6721cce8b9a4"
+  }
+}

@@ -28,3 +28,15 @@ Die absichtlich unsicheren Änderungen liegen ausschließlich auf `test/security
 Der erste Terraform-Aufbau in Germany West Central konnte AKS, ACR, Netzwerk und Key Vault erstellen. PostgreSQL wurde mit `ParameterOutOfRange` abgelehnt. Die Azure-Capability-Abfrage zeigte: `Provisioning is restricted in this region`. Für West Europe wurde PostgreSQL-Unterstützung bestätigt. Deshalb wird der eigene erste Testaufbau abgebaut und die vollständige Umgebung in West Europe neu erstellt. Ein fehlerfreies `terraform validate` beweist nicht, dass eine Subscription jede konfigurierte Azure-Ressource tatsächlich erstellen darf.
 
 Weitere Live-Ergebnisse werden nach Abschluss des Testlaufs ergänzt. Aus nicht durchgeführten Prüfungen wird kein Erfolg abgeleitet.
+
+## Erstes vollständiges Live-Deployment
+
+Am 8. November 2026 um 15:33 Uhr (Europe/Berlin) bestand der Smoke-Test gegen die Azure-LoadBalancer-IP. Die API meldete den bereitgestellten Commit `1c40845173f190cec54e8241980b6721cce8b9a4`; dieser stimmt mit dem GitHub-Push überein (`azure-deployment-first.json`).
+
+[GitHub-Run 42490045383](https://github.com/lehnermarkus-del/learningsteps/actions/runs/42490045383) ist vollständig erfolgreich: Build, sämtliche Scans, OIDC-Anmeldung, ACR-Push, Migration, Rolling Update und Wiederherstellung der ursprünglichen API-Zugriffsliste. Das Screenshot `github-live-success.png` und die Job-Zusammenfassung `github-live-first.json` dokumentieren den Lauf.
+
+Der Pod `learningsteps-b9d46958f-sp9xp` wurde für einen kontrollierten Selbstheilungstest entfernt. Kubernetes erzeugte `learningsteps-b9d46958f-rmlgn`; anschließend waren wieder zwei API-Replikate bereit (`self-healing-first.json`).
+
+Der HPA erfasste 2 % CPU bei einem Ziel von 70 %, mit 2–4 konfigurierten Replikaten (`hpa-first.txt`). Prometheus meldete beide aktuellen API-Targets als `up`, ohne Scrape-Fehler. Das deutsche Grafana-Dashboard mit vier Panels war in AKS abrufbar (`grafana-aks-dashboard.json`).
+
+Ein zusätzlicher lokaler Test mit vorübergehendem Stoppen der Datenbank wurde von der automatischen Sicherheitsprüfung blockiert; eine genauere Begründung wurde nicht angegeben. Er wurde nicht durchgeführt. Der stateless Kubernetes-Pod-Test war erfolgreich, und die automatisierten Readiness-Tests prüfen HTTP 503 bei einem Datenbankfehler.

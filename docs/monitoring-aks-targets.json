@@ -1,0 +1,18 @@
+[
+  {
+    "health": "up",
+    "labels": {
+      "instance": "10.42.0.14:8000",
+      "job": "learningsteps"
+    },
+    "lastError": ""
+  },
+  {
+    "health": "up",
+    "labels": {
+      "instance": "10.42.0.26:8000",
+      "job": "learningsteps"
+    },
+    "lastError": ""
+  }
+]

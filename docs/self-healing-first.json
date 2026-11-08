@@ -1,0 +1,16 @@
+{
+  "timestamp": "2026-11-08T15:33:45.2105744+01:00",
+  "removed_pod": "learningsteps-b9d46958f-sp9xp",
+  "replicas": [
+    {
+      "ready": "True",
+      "phase": "Running",
+      "name": "learningsteps-b9d46958f-rmlgn"
+    },
+    {
+      "ready": "True",
+      "phase": "Running",
+      "name": "learningsteps-b9d46958f-tjbst"
+    }
+  ]
+}
