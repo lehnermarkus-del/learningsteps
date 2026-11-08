@@ -71,7 +71,7 @@ Der Migration-Job erstellt das idempotente Schema unter einer PostgreSQL-Advisor
 
 Jeder Push und Pull Request führt Lint, API-Tests, Terraform-Validierung, Gitleaks und Trivy aus. Jeder HIGH-/CRITICAL-Befund führt zu einem Fehler. Erst das gescannte Image wird als kurzlebiges Artefakt in den Deployment-Job übernommen, nach ACR gepusht und mit unveränderlichem Commit-Tag bereitgestellt. Pull Requests deployen nicht. Das Deployment verwendet Azure OIDC statt gespeicherter Azure-Passwörter.
 
-Terraform erstellt zusätzlich eine eigene GitHub-Deployment-Identität mit OIDC-Föderation für den konfigurierbaren Subject-Wert `github_oidc_subject`. Dieser enthält die unveränderlichen Owner-/Repository-IDs und das Environment `azure`. Sie erhält AcrPush am Projekt-ACR und AKS Contributor am konkreten Projekt-Cluster. Sie erhält keinen Zugriff auf Key-Vault-Inhalte oder andere Ressourcengruppen. Die AKS-Rolle ist für den Übungsbetrieb bewusst auf den einen kurzlebigen Cluster beschränkt; für Dauerbetrieb sollten Clusterverwaltung und Anwendungs-RBAC weiter getrennt werden.
+Terraform erstellt zusätzlich eine eigene GitHub-Deployment-Identität mit OIDC-Föderation für den konfigurierbaren Subject-Wert `github_oidc_subject`. Dieser enthält die unveränderlichen Owner-/Repository-IDs und das Environment `azure`. Sie erhält AcrPush am Projekt-ACR und AKS Contributor am konkreten Projekt-Cluster. Für die von Azure verlangten Prüfungen verknüpfter Ressourcen erhält sie zusätzlich Network Contributor ausschließlich am AKS-Subnetz und Managed Identity Operator ausschließlich an der Cluster-Identität. Sie erhält keinen Zugriff auf Key-Vault-Inhalte oder andere Ressourcengruppen. Die AKS-Rolle ist für den Übungsbetrieb bewusst auf den einen kurzlebigen Cluster beschränkt; für Dauerbetrieb sollten Clusterverwaltung und Anwendungs-RBAC weiter getrennt werden.
 
 Nach `terraform apply` erzeugt `./scripts/configure-github.ps1 -Enable` die Datei `deployment-config.json` mit Ressourcenkennungen (keinen Passwörtern). Nach Commit und Push auf `main` läuft das Deployment automatisch im Environment `azure`. Ohne `-Enable` beziehungsweise mit `{"enabled": false}` bleibt CI aktiv und die kostenpflichtige Bereitstellung deaktiviert. Die Konfiguration ist im Auslieferungszustand deaktiviert, damit ein späterer Push keine abgebauten Testressourcen anspricht.
 
@@ -109,6 +109,7 @@ Die Dateien in `docs/` enthalten tatsächlich ausgeführte Prüfungen. Erfolgrei
 - [Key Vault CSI und Workload Identity](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
 - [GitHub OIDC mit unveränderlichen Repository-IDs](https://docs.github.com/en/actions/reference/security/oidc)
 - [AKS-Preise](https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/)
+
 
 
 

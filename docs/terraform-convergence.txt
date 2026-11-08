@@ -1,0 +1,4 @@
+Prüfzeitpunkt: 2026-11-08T15:26:59.3659865+01:00
+Terraform-Ressourcen im State: 26
+Terraform plan: No changes. Your infrastructure matches the configuration.
+Die von Azure Policy gesetzten created-on-Tags und die automatisch gewählte PostgreSQL-Zone werden gezielt erhalten.

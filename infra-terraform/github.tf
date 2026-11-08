@@ -33,3 +33,14 @@ output "github" {
 }
 
 
+# AKS prüft bei einer API-Zugriffslistenänderung auch die verknüpften Ressourcen.
+resource "azurerm_role_assignment" "github_subnet" {
+  scope                = azurerm_subnet.aks.id
+  role_definition_name = "Network Contributor"
+  principal_id         = azurerm_user_assigned_identity.github.principal_id
+}
+resource "azurerm_role_assignment" "github_identity" {
+  scope                = azurerm_user_assigned_identity.aks.id
+  role_definition_name = "Managed Identity Operator"
+  principal_id         = azurerm_user_assigned_identity.github.principal_id
+}
