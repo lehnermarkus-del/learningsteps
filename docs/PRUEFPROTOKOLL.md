@@ -58,3 +58,11 @@ Prometheus meldete erneut zwei aktuelle Scrape-Targets als `up`, ohne Fehler. De
 Nach dem erfolgreichen unveränderten Wiederaufbau wurde der von PostgreSQL automatisch ergänzte Microsoft.Storage-Endpunkt des Datenbank-Subnetzes ausdrücklich in den Code übernommen. Ein anschließender Terraform-Plan bestätigte erneut vollständige Übereinstimmung ohne Änderungen an Azure (`recovery-no-drift.txt`). Der Wiederherstellungsnachweis selbst bezieht sich auf den unveränderten Infrastrukturcode im Commit ede2e14; die Ergänzung erfolgte danach.
 
 Die Cloud-Testumgebung wird anschließend endgültig abgebaut und automatisches Deployment deaktiviert. Die lokale Compose-Vorschau bleibt für die Prüfung verfügbar. Alle Nachweise stammen aus real ausgeführten Prüfungen; hohe Last oder tatsächliches HPA-Hochskalieren wurden nicht getestet.
+
+## Endzustand und Abgabe
+
+Der abschließende `terraform destroy` entfernte erneut alle 27 Ressourcen. Der State ist leer, und die Azure-Abfrage zeigt keine aktiven Ressourcengruppen des Projekts mehr (`final-cleanup.txt`, `azure-final-state.json`). Key Vaults unterliegen weiterhin dem bewusst aktivierten Soft-Delete-/Purge-Schutz; sie sind nicht aktiv bereitgestellt.
+
+Automatisches Deployment ist im finalen Stand deaktiviert. Die CI bleibt aktiv. Die früheren öffentlichen Test-IPs sind nach dem Abbau nicht mehr erreichbar. Eine genaue Azure-Rechnung liegt wegen der verzögerten Kostenanzeige noch nicht vor; die aufgezeichneten Compute-Listenpreise sind keine Abrechnung.
+
+Es wurde nichts bei Cybersteps eingereicht. Das Abgabe-ZIP wird ausschließlich aus den versionierten Dateien des finalen main-Standes erzeugt. Lokale Zugangsdaten, .env, Kubeconfig und Terraform-State sind ausgeschlossen.

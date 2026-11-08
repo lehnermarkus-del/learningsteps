@@ -1,0 +1,7 @@
+{
+  "active_project_resource_groups": [],
+  "note": "Key Vaults bleiben gemäß Purge-Schutz nur im Soft-Delete-Zustand wiederherstellbar.",
+  "terraform_resources": 0,
+  "timestamp": "2026-11-08T16:12:27.0808935+01:00",
+  "automatic_deployment": false
+}

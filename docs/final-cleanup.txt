@@ -1,0 +1,4 @@
+Abschließender Abbau: 2026-11-08T16:11:14.1313018+01:00
+terraform destroy: erfolgreich
+Terraform-State: 0 Ressourcen
+Automatisches Deployment: deaktiviert
