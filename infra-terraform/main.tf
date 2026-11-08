@@ -36,11 +36,13 @@ locals {
   compact = "${var.prefix}${random_string.suffix.result}"
 }
 resource "azurerm_resource_group" "main" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name     = "rg-${local.name}"
   location = var.location
   tags     = { project = "LearningSteps-Evolution", lifecycle = "temporary-test" }
 }
 resource "azurerm_virtual_network" "main" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                = "vnet-${local.name}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -67,10 +69,12 @@ resource "azurerm_subnet" "db" {
   }
 }
 resource "azurerm_private_dns_zone" "db" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                = "${local.compact}.postgres.database.azure.com"
   resource_group_name = azurerm_resource_group.main.name
 }
 resource "azurerm_private_dns_zone_virtual_network_link" "db" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                  = "postgres"
   private_dns_zone_name = azurerm_private_dns_zone.db.name
   resource_group_name   = azurerm_resource_group.main.name
@@ -81,6 +85,10 @@ resource "random_password" "db" {
   special = false
 }
 resource "azurerm_postgresql_flexible_server" "db" {
+  # Azure kann beim ersten Aufbau selbst eine Zone auswählen; diese erhalten.
+  lifecycle {
+    ignore_changes = [zone, tags["created-on"]]
+  }
   name                          = "pg-${local.name}"
   resource_group_name           = azurerm_resource_group.main.name
   location                      = var.location
@@ -102,6 +110,7 @@ resource "azurerm_postgresql_flexible_server_database" "app" {
   collation = "en_US.utf8"
 }
 resource "azurerm_container_registry" "main" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                = "acr${local.compact}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -109,6 +118,7 @@ resource "azurerm_container_registry" "main" {
   admin_enabled       = false
 }
 resource "azurerm_user_assigned_identity" "aks" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                = "id-aks-${local.name}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -119,6 +129,7 @@ resource "azurerm_role_assignment" "network" {
   principal_id         = azurerm_user_assigned_identity.aks.principal_id
 }
 resource "azurerm_kubernetes_cluster" "main" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                              = "aks-${local.name}"
   resource_group_name               = azurerm_resource_group.main.name
   location                          = var.location
@@ -128,6 +139,11 @@ resource "azurerm_kubernetes_cluster" "main" {
   oidc_issuer_enabled               = true
   workload_identity_enabled         = true
   default_node_pool {
+    upgrade_settings {
+      max_surge                     = "10%"
+      drain_timeout_in_minutes      = 0
+      node_soak_duration_in_minutes = 0
+    }
     name                        = "system"
     node_count                  = 1
     vm_size                     = var.node_size
@@ -156,6 +172,7 @@ resource "azurerm_role_assignment" "pull" {
   principal_id         = azurerm_kubernetes_cluster.main.kubelet_identity[0].object_id
 }
 resource "azurerm_key_vault" "main" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   network_acls {
     default_action             = "Deny"
     bypass                     = "AzureServices"
@@ -184,6 +201,7 @@ resource "azurerm_key_vault_secret" "database_url" {
   depends_on   = [azurerm_role_assignment.vault_operator, azurerm_postgresql_flexible_server_database.app]
 }
 resource "azurerm_user_assigned_identity" "app" {
+  lifecycle { ignore_changes = [tags["created-on"]] }
   name                = "id-app-${local.name}"
   resource_group_name = azurerm_resource_group.main.name
   location            = var.location
@@ -212,6 +230,7 @@ output "deployment" {
     app_client_id  = azurerm_user_assigned_identity.app.client_id
   }
 }
+
 
 
 
