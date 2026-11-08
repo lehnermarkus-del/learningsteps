@@ -1,0 +1,42 @@
+
+Report Summary
+
+┌─────────────┬───────────┬───────────────────┐
+│   Target    │   Type    │ Misconfigurations │
+├─────────────┼───────────┼───────────────────┤
+│ .           │ terraform │         0         │
+├─────────────┼───────────┼───────────────────┤
+│ insecure.tf │ terraform │         1         │
+└─────────────┴───────────┴───────────────────┘
+Legend:
+- '-': Not scanned
+- '0': Clean (no security findings detected)
+
+
+insecure.tf (terraform)
+=======================
+Tests: 1 (SUCCESSES: 0, FAILURES: 1)
+Failures: 1 (HIGH: 0, CRITICAL: 1)
+
+AZU-0013 (CRITICAL): Vault network ACL does not block access by default.
+════════════════════════════════════════
+Network ACLs allow you to reduce your exposure to risk by limiting what can access your key vault.
+
+The default action of the Network ACL should be set to deny for when IPs are not matched. Azure services can be allowed to bypass.
+
+
+See https://avd.aquasec.com/misconfig/azu-0013
+────────────────────────────────────────
+ insecure.tf:9
+   via insecure.tf:8-11 (network_acls)
+    via insecure.tf:1-12 (azurerm_key_vault.insecure)
+────────────────────────────────────────
+   1   resource "azurerm_key_vault" "insecure" {
+   .   
+   9 [     default_action = "Allow"
+  ..   
+  12   }
+────────────────────────────────────────
+
+
+Erwarteter Exitcode: 1

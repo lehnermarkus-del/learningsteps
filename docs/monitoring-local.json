@@ -1,0 +1,7 @@
+{
+  "grafana_dashboard": "LearningSteps – Betrieb",
+  "prometheus_status": "success",
+  "panels": 4,
+  "timestamp": "2026-11-08T15:02:38.3302819+01:00",
+  "database_up": "1"
+}

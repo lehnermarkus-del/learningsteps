@@ -11,9 +11,14 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.config.outputs.json }}
     steps:
       - uses: actions/checkout@v4
         with: {fetch-depth: 0}
+      - name: Deployment-Konfiguration lesen
+        id: config
+        run: echo "json=$(jq -c . deployment-config.json)" >> "$GITHUB_OUTPUT"
       - uses: actions/setup-python@v5
         with: {python-version: '3.12'}
       - run: pip install -r requirements-dev.txt
@@ -23,7 +28,7 @@ jobs:
       - name: Secret-Scan (auch Git-Historie)
         run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --redact --exit-code=1
       - name: Terraform-Sicherheitsprüfung
-        run: docker run --rm -v "$PWD:/repo" aquasec/trivy:latest config --severity HIGH,CRITICAL --exit-code 1 /repo/infra-terraform
+        run: docker run --rm -v "$PWD:/repo" aquasec/trivy:latest config --skip-files '**/*.tfstate' --skip-files '**/*.tfplan' --severity HIGH,CRITICAL --exit-code 1 /repo/infra-terraform
       - name: Image bauen
         run: docker build -t learningsteps:${{ github.sha }} .
       - name: Image-Sicherheitsprüfung
@@ -34,7 +39,7 @@ jobs:
         with: {name: verified-image, path: image.tar.gz, retention-days: 1}
   deploy:
     needs: verify
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && fromJson(needs.verify.outputs.config).enabled == true
     runs-on: ubuntu-latest
     environment: azure
     permissions:
@@ -47,12 +52,12 @@ jobs:
       - run: gunzip -c image.tar.gz | docker load
       - uses: azure/login@v2
         with:
-          client-id: ${{ vars.AZURE_CLIENT_ID }}
-          tenant-id: ${{ vars.AZURE_TENANT_ID }}
-          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          client-id: ${{ fromJson(needs.verify.outputs.config).client_id }}
+          tenant-id: ${{ fromJson(needs.verify.outputs.config).tenant }}
+          subscription-id: ${{ fromJson(needs.verify.outputs.config).subscription_id }}
       - name: Verifiziertes Image nach ACR übertragen
         env:
-          ACR: ${{ vars.ACR_NAME }}
+          ACR: ${{ fromJson(needs.verify.outputs.config).registry }}
         run: |
           set -euo pipefail
           az acr login --name "$ACR"
@@ -60,11 +65,13 @@ jobs:
           docker push "$ACR.azurecr.io/learningsteps:${{ github.sha }}"
       - name: Temporäre Runner-IP zur API-Zugriffsliste hinzufügen
         env:
-          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AKS: ${{ vars.AKS_NAME }}
-          ADMIN_CIDR: ${{ vars.ADMIN_CIDR }}
+          RG: ${{ fromJson(needs.verify.outputs.config).resource_group }}
+          AKS: ${{ fromJson(needs.verify.outputs.config).cluster }}
         run: |
           set -euo pipefail
+          ADMIN_CIDR="$(az aks show -g "$RG" -n "$AKS" --query apiServerAccessProfile.authorizedIpRanges -o tsv | paste -sd, -)"
+          test -n "$ADMIN_CIDR"
+          echo "ADMIN_CIDR=$ADMIN_CIDR" >> "$GITHUB_ENV"
           RUNNER_CIDR="$(curl -fsS https://api.ipify.org)/32"
           echo "RUNNER_CIDR=$RUNNER_CIDR" >> "$GITHUB_ENV"
           az aks update -g "$RG" -n "$AKS" --api-server-authorized-ip-ranges "$ADMIN_CIDR,$RUNNER_CIDR" --output none
@@ -75,11 +82,11 @@ jobs:
         with: {python-version: '3.12'}
       - name: Migration und Rolling Update
         env:
-          IMAGE: ${{ vars.ACR_NAME }}.azurecr.io/learningsteps:${{ github.sha }}
-          APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
-          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
-          TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
-          CLIENT_CIDR: ${{ vars.ADMIN_CIDR }}
+          IMAGE: ${{ fromJson(needs.verify.outputs.config).registry }}.azurecr.io/learningsteps:${{ github.sha }}
+          APP_CLIENT_ID: ${{ fromJson(needs.verify.outputs.config).app_client_id }}
+          KEY_VAULT_NAME: ${{ fromJson(needs.verify.outputs.config).vault }}
+          TENANT_ID: ${{ fromJson(needs.verify.outputs.config).tenant }}
+          CLIENT_CIDR: ${{ env.ADMIN_CIDR }}
         run: |
           set -euo pipefail
           python scripts/render.py
@@ -89,9 +96,12 @@ jobs:
           kubectl wait -n learningsteps --for=condition=complete job/learningsteps-migrate --timeout=180s
           kubectl rollout status -n learningsteps deployment/learningsteps --timeout=240s
       - name: Ursprüngliche API-Zugriffsliste wiederherstellen
-        if: always()
+        if: always() && env.ADMIN_CIDR != ''
         env:
-          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
-          AKS: ${{ vars.AKS_NAME }}
-          ADMIN_CIDR: ${{ vars.ADMIN_CIDR }}
+          RG: ${{ fromJson(needs.verify.outputs.config).resource_group }}
+          AKS: ${{ fromJson(needs.verify.outputs.config).cluster }}
         run: az aks update -g "$RG" -n "$AKS" --api-server-authorized-ip-ranges "$ADMIN_CIDR" --output none
+
+
+
+

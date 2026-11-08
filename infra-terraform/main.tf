@@ -6,7 +6,11 @@ terraform {
   }
 }
 provider "azurerm" {
-  features {}
+  features {
+    key_vault {
+      purge_soft_delete_on_destroy = false
+    }
+  }
   subscription_id = var.subscription_id
 }
 data "azurerm_client_config" "current" {}
@@ -208,5 +212,6 @@ output "deployment" {
     app_client_id  = azurerm_user_assigned_identity.app.client_id
   }
 }
+
 
 

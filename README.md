@@ -70,20 +70,15 @@ Der Migration-Job erstellt das idempotente Schema unter einer PostgreSQL-Advisor
 
 Jeder Push und Pull Request führt Lint, API-Tests, Terraform-Validierung, Gitleaks und Trivy aus. Jeder HIGH-/CRITICAL-Befund führt zu einem Fehler. Erst das gescannte Image wird als kurzlebiges Artefakt in den Deployment-Job übernommen, nach ACR gepusht und mit unveränderlichem Commit-Tag bereitgestellt. Pull Requests deployen nicht. Das Deployment verwendet Azure OIDC statt gespeicherter Azure-Passwörter.
 
-Benötigte Repository-/Environment-Variablen (`azure`):
+Terraform erstellt zusätzlich eine eigene GitHub-Deployment-Identität mit OIDC-Föderation für `repo:lehnermarkus-del/learningsteps:environment:azure`. Sie erhält AcrPush am Projekt-ACR und AKS Contributor am konkreten Projekt-Cluster. Sie erhält keinen Zugriff auf Key-Vault-Inhalte oder andere Ressourcengruppen. Die AKS-Rolle ist für den Übungsbetrieb bewusst auf den einen kurzlebigen Cluster beschränkt; für Dauerbetrieb sollten Clusterverwaltung und Anwendungs-RBAC weiter getrennt werden.
 
-| Variable | Wert |
-|---|---|
-| DEPLOY_ENABLED | `true` nur während eines bewusst gestarteten Cloud-Testfensters |
-| AZURE_CLIENT_ID | Client-ID der GitHub-Deployment-Identität |
-| AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID | Ziel-Tenant und Subscription |
-| AZURE_RESOURCE_GROUP / AKS_NAME / ACR_NAME | Terraform-Ausgaben |
-| APP_CLIENT_ID / KEY_VAULT_NAME | Terraform-Ausgaben |
-| ADMIN_CIDR | feste eigene IPv4/32 |
+Nach `terraform apply` erzeugt `./scripts/configure-github.ps1 -Enable` die Datei `deployment-config.json` mit Ressourcenkennungen (keinen Passwörtern). Nach Commit und Push auf `main` läuft das Deployment automatisch im Environment `azure`. Ohne `-Enable` beziehungsweise mit `{"enabled": false}` bleibt CI aktiv und die kostenpflichtige Bereitstellung deaktiviert. Die Konfiguration ist im Auslieferungszustand deaktiviert, damit ein späterer Push keine abgebauten Testressourcen anspricht.
 
-Die Deployment-Identität benötigt AcrPush am ACR, AKS Cluster User sowie die Berechtigung zur Aktualisierung der AKS-API-Zugriffsliste am konkreten Cluster. Die OIDC-Föderation ist auf `repo:lehnermarkus-del/learningsteps:environment:azure` zu begrenzen. Für den kurzlebigen GitHub-Runner wird ausschließlich dessen /32 zur API-Liste hinzugefügt und im `always()`-Schritt wieder entfernt. Kein Datenbankpasswort und kein Terraform-State wird in GitHub gespeichert.
+Für den kurzlebigen GitHub-Runner wird ausschließlich dessen /32 zur bestehenden API-Zugriffsliste hinzugefügt und im `always()`-Schritt wieder entfernt. Die ursprüngliche Client-IP wird zur Laufzeit aus Azure gelesen und nicht in den Quellcode geschrieben. Der Service bleibt auf den ursprünglichen Client beschränkt. Kein Datenbankpasswort und kein Terraform-State wird in GitHub gespeichert. Ein erlaubtes Deployment muss den vorhandenen Terraform-Aufbau verwenden; die Pipeline führt kein automatisches `terraform apply` oder `destroy` aus.
 
 ## Monitoring (optional)
+
+Lokal: ein zufälliges `GRAFANA_PASSWORD` in `.env` ergänzen und `docker compose -f compose.yaml -f compose.monitoring.yaml up -d` ausführen. Grafana läuft unter http://localhost:3000 (Benutzer `admin`), Prometheus unter http://localhost:9090. Datenquelle und deutsches Dashboard werden automatisch provisioniert.
 
 `monitoring/values.yaml` konfiguriert kube-prometheus-stack mit kurzer Datenhaltung. Installation mit Helm, anschließend Dashboard `monitoring/dashboard.json` in Grafana importieren. Grafana bleibt ClusterIP und wird nur per Port-Forward geöffnet. Das Dashboard zeigt Anfragevolumen, p95-Antwortdauer, Datenbankstatus und 5xx-Fehler. Monitoring benötigt zusätzliche Knotenkapazität und ist vom Pflichtteil getrennt.
 
@@ -112,3 +107,5 @@ Die Dateien in `docs/` enthalten tatsächlich ausgeführte Prüfungen. Erfolgrei
 - [AKS Terraform-Ressource](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster)
 - [Key Vault CSI und Workload Identity](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
 - [AKS-Preise](https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/)
+
+

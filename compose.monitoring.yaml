@@ -1,0 +1,16 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    command: [--config.file=/etc/prometheus/prometheus.yml, --storage.tsdb.retention.time=2h]
+    volumes: ["./monitoring/prometheus-local.yaml:/etc/prometheus/prometheus.yml:ro"]
+    ports: ["127.0.0.1:9090:9090"]
+  grafana:
+    image: grafana/grafana:latest
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:?GRAFANA_PASSWORD setzen}
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+    ports: ["127.0.0.1:3000:3000"]
+    volumes:
+      - ./monitoring/datasource.yaml:/etc/grafana/provisioning/datasources/learningsteps.yaml:ro
+      - ./monitoring/dashboard-provider.yaml:/etc/grafana/provisioning/dashboards/learningsteps.yaml:ro
+      - ./monitoring/dashboard.json:/var/lib/grafana/dashboards/learningsteps.json:ro
