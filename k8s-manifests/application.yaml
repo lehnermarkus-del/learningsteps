@@ -1,0 +1,144 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: learningsteps
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: learningsteps
+  namespace: learningsteps
+  annotations:
+    azure.workload.identity/client-id: "${APP_CLIENT_ID}"
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: learningsteps
+  namespace: learningsteps
+data:
+  DATABASE_URL_FILE: /mnt/secrets/database-url
+---
+apiVersion: secrets-store.csi.x-k8s.io/v1
+kind: SecretProviderClass
+metadata:
+  name: learningsteps
+  namespace: learningsteps
+spec:
+  provider: azure
+  parameters:
+    usePodIdentity: "false"
+    clientID: "${APP_CLIENT_ID}"
+    keyvaultName: "${KEY_VAULT_NAME}"
+    tenantId: "${TENANT_ID}"
+    objects: |
+      array:
+        - |
+          objectName: database-url
+          objectType: secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: learningsteps
+  namespace: learningsteps
+spec:
+  replicas: 2
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels: {app: learningsteps}
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: {maxUnavailable: 0, maxSurge: 1}
+  template:
+    metadata:
+      labels:
+        app: learningsteps
+        azure.workload.identity/use: "true"
+    spec:
+      serviceAccountName: learningsteps
+      automountServiceAccountToken: false
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: "${IMAGE}"
+          imagePullPolicy: Always
+          ports: [{containerPort: 8000, name: http}]
+          envFrom: [{configMapRef: {name: learningsteps}}]
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          startupProbe:
+            httpGet: {path: /health/live, port: http}
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /health/live, port: http}
+          readinessProbe:
+            httpGet: {path: /health/ready, port: http}
+            periodSeconds: 5
+          volumeMounts:
+            - {name: secrets, mountPath: /mnt/secrets, readOnly: true}
+            - {name: tmp, mountPath: /tmp}
+      volumes:
+        - name: secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: {secretProviderClass: learningsteps}
+        - name: tmp
+          emptyDir: {sizeLimit: 32Mi}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: learningsteps
+  namespace: learningsteps
+spec:
+  type: LoadBalancer
+  loadBalancerSourceRanges: ["${CLIENT_CIDR}"]
+  selector: {app: learningsteps}
+  ports: [{port: 80, targetPort: http, name: http}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata: {name: learningsteps, namespace: learningsteps}
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: learningsteps}
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata: {name: learningsteps, namespace: learningsteps}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {app: learningsteps}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: {name: learningsteps, namespace: learningsteps}
+spec:
+  podSelector:
+    matchLabels: {app: learningsteps}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from: [{ipBlock: {cidr: "${CLIENT_CIDR}"}}, {namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]
+      ports: [{protocol: TCP, port: 8000}]
+  egress:
+    - to: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}}]
+      ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+    - to: [{ipBlock: {cidr: 10.42.4.0/24}}]
+      ports: [{protocol: TCP, port: 5432}]
+    - to: [{ipBlock: {cidr: 0.0.0.0/0}}]
+      ports: [{protocol: TCP, port: 443}]

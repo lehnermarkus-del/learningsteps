@@ -169,3 +169,20 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Terraform / lokale Zugangsdaten
+**/.terraform/
+*.tfstate*
+*.tfplan
+*.tfvars
+!*.tfvars.example
+.env.*
+!.env-sample
+rendered/
+
+
+.kubeconfig
+
+
+*.tfvars.json
+

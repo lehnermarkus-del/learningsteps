@@ -1,0 +1,30 @@
+apiVersion: batch/v1
+kind: Job
+metadata: {name: learningsteps-migrate, namespace: learningsteps}
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 2
+  template:
+    metadata:
+      labels: {app: learningsteps, azure.workload.identity/use: "true"}
+    spec:
+      serviceAccountName: learningsteps
+      automountServiceAccountToken: false
+      restartPolicy: Never
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, runAsGroup: 10001, fsGroup: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: migration
+          image: "${IMAGE}"
+          command: [python, migrate.py]
+          envFrom: [{configMapRef: {name: learningsteps}}]
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+          volumeMounts: [{name: secrets, mountPath: /mnt/secrets, readOnly: true}]
+      volumes:
+        - name: secrets
+          csi:
+            driver: secrets-store.csi.k8s.io
+            readOnly: true
+            volumeAttributes: {secretProviderClass: learningsteps}

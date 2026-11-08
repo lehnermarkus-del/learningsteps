@@ -1,205 +1,114 @@
-# LearningSteps API
+# LearningSteps Evolution
 
-Welcome to LearningSteps! LearningSteps is a Python FastAPI + PostgreSQL application that helps people track their daily learning journey. In this project, you will build, extend, and finally deploy LearningSteps to the cloud!
+Dieses Projekt entwickelt die FastAPI-/PostgreSQL-Anwendung von CyberstepsDE zu einer automatisiert bereitstellbaren Azure-Anwendung weiter. Dokumentation und Betriebsanleitung sind auf Deutsch.
 
+## Architektur
 
-## Table of Contents
+```mermaid
+flowchart LR
+  Git[GitHub Push] --> CI[Lint + Tests + Secret-Scan + Trivy]
+  CI --> ACR[Azure Container Registry]
+  ACR --> AKS[AKS: Deployment mit 2 Pods und HPA]
+  User[Erlaubte Client-IP] --> LB[LoadBalancer]
+  LB --> AKS
+  AKS --> DB[Private PostgreSQL Flexible Server]
+  KV[Key Vault] -->|Workload Identity + CSI| AKS
+  AKS --> Prom[Prometheus / Grafana]
+  TF[Terraform] --> AKS
+  TF --> DB
+  TF --> KV
+  TF --> ACR
+```
 
-- [🚀 Getting Started](#-getting-started)
-- [🎯 Development Tasks (Your Work!)](#-development-tasks-your-work)
-  - [1. API Implementation (Required)](#1-api-implementation-required)
-  - [2. Logging Setup (Required)](#2-logging-setup-required)
-  - [3. Data Model Improvements (Optional)](#3-data-model-improvements-optional)
-  - [4. Cloud CLI Setup (Required for Deployment)](#4-cloud-cli-setup-required-for-deployment)
-- [📊 Data Schema](#-data-schema)
-- [�️ Explore Your Database (Optional)](#️-explore-your-database-optional)
-- [🔧 Troubleshooting](#-troubleshooting)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
+Terraform erstellt ein eigenes VNet mit getrennten AKS- und Datenbank-Subnetzen. PostgreSQL hat keinen öffentlichen Netzwerkzugang und verwendet Private DNS. AKS zieht Images ohne Registry-Passwort über seine Managed Identity. Der Datenbank-Verbindungsstring liegt in Key Vault und wird über eine dedizierte Workload Identity als schreibgeschützte CSI-Datei eingebunden. Die Anwendung liest diese Datei beim Start; nach einer Passwortrotation ist ein Rolling Restart notwendig, damit der Connection Pool die neuen Werte übernimmt.
 
-## 🚀 Getting Started
+## Lokal starten
 
-### Prerequisites
+Voraussetzungen: Git, Docker Desktop mit Linux-Containern, für die PowerShell-Skripte PowerShell 7.
 
-- Git installed on your machine
-- Docker Desktop installed and running
-- VS Code with the Dev Containers extension
+```powershell
+# Einmalig ein zufälliges lokales Testpasswort erzeugen:
+"POSTGRES_PASSWORD=$([Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(16)))" | Set-Content .env
+docker compose up -d --build
+./scripts/smoke.ps1
+```
 
-### 1. Fork and Clone the Repository
+Swagger UI: http://localhost:8000/docs. Die Datenbank ist lokal nicht nach außen veröffentlicht. `docker compose down` beendet die Container; das Datenvolume bleibt bestehen. Es werden ausschließlich synthetische Testdaten verwendet.
 
-1. **Fork this repository** to your GitHub account by clicking the "Fork" button
-1. **Clone your fork** to your local machine:
+## API und Betrieb
 
-   ```bash
-   git clone https://github.com/YOUR_USERNAME/learningsteps.git
-   ```
+- CRUD-Endpunkte unter `/entries`; Eingaben werden validiert, unbekannte und interne Felder abgewiesen.
+- `/health/live`: Prozess lebt; unabhängig von PostgreSQL.
+- `/health/ready`: Datenbank und Tabelle erreichbar; bei Ausfall HTTP 503.
+- `/metrics`: Prometheus-Zähler, Histogramme und Datenbank-Erreichbarkeit. Routen statt konkreter IDs verhindern unbeschränkte Metrik-Labels.
+- Ein gemeinsamer Connection Pool pro Pod, strukturierte Konsolenausgabe ohne Verbindungsstring.
+- PATCH erhält unveränderte Felder; Einzelabruf und Einzellöschung sind implementiert.
 
-1. Move into the project directory:
+## Azure bereitstellen
 
-   ```bash
-   cd learningsteps
-   ```
+Voraussetzungen: angemeldete Azure CLI, Terraform >= 1.7, kubectl, ausreichende Azure-Quota und Berechtigungen für die Projektressourcen und ihre Rollenzuweisungen.
 
-1. **Open in VS Code**:
+```powershell
+az login
+terraform -chdir=infra-terraform init
+# terraform.tfvars.json lokal anlegen: subscription_id, admin_cidr (eigene öffentliche IPv4/32)
+terraform -chdir=infra-terraform plan -out=deployment.tfplan
+terraform -chdir=infra-terraform apply deployment.tfplan
+$config = terraform -chdir=infra-terraform output -json deployment | ConvertFrom-Json
+az acr login --name $config.registry
+docker build -t learningsteps:local .
+docker tag learningsteps:local "$($config.login_server)/learningsteps:initial"
+docker push "$($config.login_server)/learningsteps:initial"
+./scripts/deploy.ps1 -ImageTag initial -ClientCidr 'DEINE_IP/32'
+kubectl get svc -n learningsteps
+./scripts/smoke.ps1 -BaseUrl 'http://LOADBALANCER_IP'
+```
 
-   ```bash
-   code .
-   ```
+Der Migration-Job erstellt das idempotente Schema unter einer PostgreSQL-Advisory-Lock. Erst nach erfolgreicher Migration wird die Betriebsbereitschaft bestätigt. Container laufen ohne Root, mit schreibgeschütztem Dateisystem, ohne zusätzliche Linux-Capabilities und mit Ressourcenlimits. Zwei Replikate, Probes, Rolling Updates, PodDisruptionBudget und HPA (70 % CPU, 2–4 Pods) sind konfiguriert. Ein einzelner günstiger AKS-Knoten ist für den Budget-Test vorgesehen; für Ausfallsicherheit bei Knotenausfall sind mindestens zwei Knoten erforderlich.
 
-### 2. Configure Your Environment (.env)
+## GitHub Actions
 
-Environment variables live in a `.env` file (which is **git-ignored** so you don't accidentally commit secrets). This repo ships with a template named `.env-sample`.
+Jeder Push und Pull Request führt Lint, API-Tests, Terraform-Validierung, Gitleaks und Trivy aus. Jeder HIGH-/CRITICAL-Befund führt zu einem Fehler. Erst das gescannte Image wird als kurzlebiges Artefakt in den Deployment-Job übernommen, nach ACR gepusht und mit unveränderlichem Commit-Tag bereitgestellt. Pull Requests deployen nicht. Das Deployment verwendet Azure OIDC statt gespeicherter Azure-Passwörter.
 
-1. Copy the sample file to create your real `.env`:
+Benötigte Repository-/Environment-Variablen (`azure`):
 
-   ```bash
-   cp .env-sample .env
-   ```
+| Variable | Wert |
+|---|---|
+| DEPLOY_ENABLED | `true` nur während eines bewusst gestarteten Cloud-Testfensters |
+| AZURE_CLIENT_ID | Client-ID der GitHub-Deployment-Identität |
+| AZURE_TENANT_ID / AZURE_SUBSCRIPTION_ID | Ziel-Tenant und Subscription |
+| AZURE_RESOURCE_GROUP / AKS_NAME / ACR_NAME | Terraform-Ausgaben |
+| APP_CLIENT_ID / KEY_VAULT_NAME | Terraform-Ausgaben |
+| ADMIN_CIDR | feste eigene IPv4/32 |
 
-### 3. Set Up Your Development Environment
+Die Deployment-Identität benötigt AcrPush am ACR, AKS Cluster User sowie die Berechtigung zur Aktualisierung der AKS-API-Zugriffsliste am konkreten Cluster. Die OIDC-Föderation ist auf `repo:lehnermarkus-del/learningsteps:environment:azure` zu begrenzen. Für den kurzlebigen GitHub-Runner wird ausschließlich dessen /32 zur API-Liste hinzugefügt und im `always()`-Schritt wieder entfernt. Kein Datenbankpasswort und kein Terraform-State wird in GitHub gespeichert.
 
-1. **Install the Dev Containers extension** in VS Code (if not already installed)
-2. **Reopen in container**: When VS Code detects the `.devcontainer` folder, click "Reopen in Container"
-   - Or use Command Palette (`Cmd/Ctrl + Shift + P`): `Dev Containers: Reopen in Container`
-3. **Wait for setup**: The API container will automatically install Python, dependencies, and configure your environment.
-   The PostgreSQL Database container will also automatically be created.
+## Monitoring (optional)
 
-### 4. Verify the PostgreSQL Database Is Running
+`monitoring/values.yaml` konfiguriert kube-prometheus-stack mit kurzer Datenhaltung. Installation mit Helm, anschließend Dashboard `monitoring/dashboard.json` in Grafana importieren. Grafana bleibt ClusterIP und wird nur per Port-Forward geöffnet. Das Dashboard zeigt Anfragevolumen, p95-Antwortdauer, Datenbankstatus und 5xx-Fehler. Monitoring benötigt zusätzliche Knotenkapazität und ist vom Pflichtteil getrennt.
 
-In a terminal outside of VS Code, run:
+## Kosten, State und Abbau
 
-   ```bash
-      docker ps
-   ```
+Für diesen Auftrag ist ein Gesamtbudget von 20 € freigegeben. Die Umgebung dient einem kurzen Testlauf und wird anschließend wieder abgebaut. AKS Free bezeichnet nur die kostenlose Control Plane; VM, Disks, LoadBalancer, IP, PostgreSQL, Registry und Transaktionen kosten weiterhin Geld. Ein Budgetalarm ist keine harte Kostensperre. Vor einem späteren Wiederaufbau aktuelle Preise und Laufzeit prüfen.
 
-You should see the postgres service running.
+```powershell
+terraform -chdir=infra-terraform plan -destroy
+terraform -chdir=infra-terraform destroy
+```
 
-### 5. Run the API
+Terraform-State enthält vertrauliche Daten einschließlich Datenbankpasswort und bleibt lokal, git-ignoriert. Für Team-/Dauerbetrieb einen verschlüsselten Azure-Blob-Backend mit Zugriffskontrolle und State-Locking einrichten. Key Vault verwendet Lösch- und Purge-Schutz: der gelöschte Vault bleibt während seiner Aufbewahrung wiederherstellbar. Für einen Neuaufbau wird eine neue zufällige Namenskennung verwendet.
 
-Make sure you are in the root of your project in the terminal (inside VS Code, while container is running):
+## Grenzen des Übungsbetriebs
 
-   ```bash
-     ./start.sh
-   ```
+Die API hat keine Benutzeranmeldung und soll deshalb ausschließlich über die erlaubte Client-IP mit synthetischen Daten verwendet werden. Für öffentlichen Dauerbetrieb sind TLS, Authentifizierung, Autorisierung, dedizierter DB-Runtime-Benutzer, mehrere AKS-Knoten, Alarmierung und gesicherter Remote-State ergänzend erforderlich. HTTP ist nur für den eingeschränkten Testzugriff vorgesehen.
 
-### 6. Test Everything Works! 🎉
+## Nachweise
 
-1. **Visit the API docs**: http://localhost:8000/docs
-1. **Create your first entry** In the Docs UI Use the POST `/entries` endpoint to create a new journal entry.
-1. **View your entries** using the GET `/entries` endpoint to see what you've created!
+Die Dateien in `docs/` enthalten tatsächlich ausgeführte Prüfungen. Erfolgreiche Live-Deployments, GitHub-Läufe und Abbau werden dort mit ihrem wirklichen Status dokumentiert. Eine Konfigurationsdatei allein ist kein Nachweis eines erfolgreichen Cloud-Betriebs.
 
-**🎯 Once you can create and see entries, you're ready to start implementing the missing endpoints!**
+## Quellen
 
-## Your Learning Goals
-
-Complete a learning journal API that allows users to:
-
-- ✅ **Store journal entries** (already implemented)
-- ✅ **Retrieve all journal entries** (already implemented)
-- ❌ **Retrieve single journal entry** (you need to implement)  
-- ❌ **Delete specific journal entries** (you need to implement)
-- ✅ **Update journal entries** (already implemented)
-- ✅ **Delete all entries** (already implemented)
-- ❌ **Setup logging** (you need to implement)
-
-## 🎯 Development Tasks (Your Work!)
-
-You'll use **feature branches** and **Pull Requests (PRs)** for each task. Complete these tasks in your forked repository using feature branches.
-
-### 1. API Implementation (Required)
-
-#### Task 1a: GET Single Entry Endpoint
-
-- Branch: `feature/get-single-entry`
-- [ ] Implement **GET /entries/{entry_id}** in `api/routers/journal_router.py`
-
-#### Task 1b: DELETE Single Entry Endpoint
-
-- Branch: `feature/delete-entry`
-- [ ] Implement **DELETE /entries/{entry_id}** in `api/routers/journal_router.py`
-
-### 2. Logging Setup (Required)
-
-- Branch: `feature/logging-setup`
-- [ ] Configure logging in `api/main.py`
-
-### 3. Data Model Improvements (Optional)
-
-- Branch: `feature/data-model-improvements`  
-- [ ] Add validators to `api/models/entry.py`
-
-### 4. Cloud CLI Setup (Required for Deployment)
-
-- Branch: `feature/cloud-cli-setup`
-- [ ] Uncomment one CLI tool in `.devcontainer/devcontainer.json`
-
-## 📊 Data Schema
-
-Each journal entry follows this structure:
-
-| Field       | Type      | Description                                | Validation                   |
-|-------------|-----------|--------------------------------------------|------------------------------|
-| id          | string    | Unique identifier (UUID)                   | Auto-generated               |
-| work        | string    | What did you work on today?                | Required, max 256 characters |
-| struggle    | string    | What's one thing you struggled with today? | Required, max 256 characters |
-| intention   | string    | What will you study/work on tomorrow?      | Required, max 256 characters |
-| created_at  | datetime  | When entry was created                     | Auto-generated UTC           |
-| updated_at  | datetime  | When entry was last updated                | Auto-updated UTC             |
-
-## 🗄️ Explore Your Database (Optional)
-
-Want to see your data directly in the database? You can connect to PostgreSQL using VS Code's PostgreSQL extension:
-
-### 1. Install PostgreSQL Extension
-
-1. **Install the PostgreSQL extension** in VS Code (search for "PostgreSQL" by Chris Kolkman)
-2. **Restart VS Code** after installation
-
-### 2. Connect to Your Database
-
-1. **Open the PostgreSQL extension** (click the PostgreSQL icon in the sidebar)
-2. **Click "Add Connection"** or the "+" button
-3. **Enter these connection details**:
-   - **Host name**: `postgres`
-   - **User name**: `postgres`
-   - **Password**: `postgres`
-   - **Port**: `5432`
-   - **Conection Type**: `Standard/No SSL`
-   - **Database**: `learning_journal`
-   - **Display name**: `Learning Journal DB` (or any name you prefer)
-
-### 3. Explore Your Data
-
-1. **Expand your connection** in the PostgreSQL panel
-2. **Left-click on "Learning Journal DB" to expand**
-3. **Right-click on "learning_journal"**
-4. **Select "New Query"**
-5. **Type this query** to see all your entries:
-
-   ```sql
-   SELECT * FROM entries;
-   ```
-
-6. **Run the query** to see all your journal data! (Ctrl/Cmd + Enter OR use the PostgreSQL command pallete: Run Query)
-
-You can now explore the database structure, see exactly how your data is stored, and run custom queries to understand PostgreSQL better.
-
-## 🔧 Troubleshooting
-
-**If the API won't start:**
-
-- Make sure the PostgreSQL container is running: `docker ps`
-- Check the container logs: `docker logs your-postgres-container-name`
-- Restart the database: `docker restart your-postgres-container-name`
-
-**If you can't connect to the database:**
-
-- Verify the `.env` file exists and has the correct DATABASE_URL
-- Make sure Docker Desktop is running
-- Try restarting the dev container: `Dev Containers: Rebuild Container`
-
-**If the dev container won't open:**
-
-- Ensure Docker Desktop is running
-- Install the "Dev Containers" extension in VS Code
-- Try: `Dev Containers: Rebuild and Reopen in Container`
+- [Ausgangscode](https://github.com/CyberstepsDE/learningsteps)
+- [AKS Terraform-Ressource](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster)
+- [Key Vault CSI und Workload Identity](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
+- [AKS-Preise](https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/)

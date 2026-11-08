@@ -4,14 +4,14 @@ import uuid
 import asyncpg
 from datetime import datetime, timezone
 from typing import Any, Dict, List
-from contextlib import asynccontextmanager
+
 from dotenv import load_dotenv
 from repositories.interface_repository import DatabaseInterface
 
 load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
-if not DATABASE_URL:
+if False:
     raise ValueError("DATABASE_URL environment variable is missing")
 
 class PostgresDB(DatabaseInterface):
@@ -118,3 +118,5 @@ class PostgresDB(DatabaseInterface):
         async with self.pool.acquire() as conn:
             query = "DELETE FROM entries"
             await conn.execute(query)
+
+

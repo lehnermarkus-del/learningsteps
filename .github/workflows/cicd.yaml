@@ -1,0 +1,97 @@
+name: Build – Scan – Deploy
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: learningsteps-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 0}
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - run: pip install -r requirements-dev.txt
+      - run: ruff check api tests && pytest -q
+      - uses: hashicorp/setup-terraform@v3
+      - run: terraform -chdir=infra-terraform fmt -check && terraform -chdir=infra-terraform init -backend=false && terraform -chdir=infra-terraform validate
+      - name: Secret-Scan (auch Git-Historie)
+        run: docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:latest detect --source=/repo --redact --exit-code=1
+      - name: Terraform-Sicherheitsprüfung
+        run: docker run --rm -v "$PWD:/repo" aquasec/trivy:latest config --severity HIGH,CRITICAL --exit-code 1 /repo/infra-terraform
+      - name: Image bauen
+        run: docker build -t learningsteps:${{ github.sha }} .
+      - name: Image-Sicherheitsprüfung
+        run: docker run --rm -v /var/run/docker.sock:/var/run/docker.sock aquasec/trivy:latest image --severity HIGH,CRITICAL --exit-code 1 learningsteps:${{ github.sha }}
+      - name: Verifiziertes Image speichern
+        run: docker save learningsteps:${{ github.sha }} | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with: {name: verified-image, path: image.tar.gz, retention-days: 1}
+  deploy:
+    needs: verify
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    environment: azure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: {name: verified-image}
+      - run: gunzip -c image.tar.gz | docker load
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Verifiziertes Image nach ACR übertragen
+        env:
+          ACR: ${{ vars.ACR_NAME }}
+        run: |
+          set -euo pipefail
+          az acr login --name "$ACR"
+          docker tag learningsteps:${{ github.sha }} "$ACR.azurecr.io/learningsteps:${{ github.sha }}"
+          docker push "$ACR.azurecr.io/learningsteps:${{ github.sha }}"
+      - name: Temporäre Runner-IP zur API-Zugriffsliste hinzufügen
+        env:
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AKS: ${{ vars.AKS_NAME }}
+          ADMIN_CIDR: ${{ vars.ADMIN_CIDR }}
+        run: |
+          set -euo pipefail
+          RUNNER_CIDR="$(curl -fsS https://api.ipify.org)/32"
+          echo "RUNNER_CIDR=$RUNNER_CIDR" >> "$GITHUB_ENV"
+          az aks update -g "$RG" -n "$AKS" --api-server-authorized-ip-ranges "$ADMIN_CIDR,$RUNNER_CIDR" --output none
+          az aks get-credentials -g "$RG" -n "$AKS" --file "$RUNNER_TEMP/kubeconfig"
+          echo "KUBECONFIG=$RUNNER_TEMP/kubeconfig" >> "$GITHUB_ENV"
+      - uses: azure/setup-kubectl@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: '3.12'}
+      - name: Migration und Rolling Update
+        env:
+          IMAGE: ${{ vars.ACR_NAME }}.azurecr.io/learningsteps:${{ github.sha }}
+          APP_CLIENT_ID: ${{ vars.APP_CLIENT_ID }}
+          KEY_VAULT_NAME: ${{ vars.KEY_VAULT_NAME }}
+          TENANT_ID: ${{ vars.AZURE_TENANT_ID }}
+          CLIENT_CIDR: ${{ vars.ADMIN_CIDR }}
+        run: |
+          set -euo pipefail
+          python scripts/render.py
+          kubectl apply -f rendered/application.yaml
+          kubectl delete job learningsteps-migrate -n learningsteps --ignore-not-found
+          kubectl apply -f rendered/migration.yaml
+          kubectl wait -n learningsteps --for=condition=complete job/learningsteps-migrate --timeout=180s
+          kubectl rollout status -n learningsteps deployment/learningsteps --timeout=240s
+      - name: Ursprüngliche API-Zugriffsliste wiederherstellen
+        if: always()
+        env:
+          RG: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AKS: ${{ vars.AKS_NAME }}
+          ADMIN_CIDR: ${{ vars.ADMIN_CIDR }}
+        run: az aks update -g "$RG" -n "$AKS" --api-server-authorized-ip-ranges "$ADMIN_CIDR" --output none

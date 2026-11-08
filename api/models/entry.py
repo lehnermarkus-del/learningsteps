@@ -1,62 +1,23 @@
-from pydantic import BaseModel, Field
-from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from uuid import uuid4
+from pydantic import BaseModel, ConfigDict, Field
+
 
 class EntryCreate(BaseModel):
-    """Model for creating a new journal entry (user input)."""
-    work: str = Field(
-        max_length=256,
-        description="What did you work on today?",
-        json_schema_extra={"example": "Studied FastAPI and built my first API endpoints"}
-    )
-    struggle: str = Field(
-        max_length=256,
-        description="What's one thing you struggled with today?",
-        json_schema_extra={"example": "Understanding async/await syntax and when to use it"}
-    )
-    intention: str = Field(
-        max_length=256,
-        description="What will you study/work on tomorrow?",
-        json_schema_extra={"example": "Practice PostgreSQL queries and database design"}
-    )
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    work: str = Field(min_length=1, max_length=256, description="Was hast du heute gelernt?")
+    struggle: str = Field(min_length=1, max_length=256, description="Was war schwierig?")
+    intention: str = Field(min_length=1, max_length=256, description="Was ist dein nächstes Ziel?")
 
-class Entry(BaseModel):
-    # TODO: Add field validation rules
-    # TODO: Add custom validators
-    # TODO: Add schema versioning
-    # TODO: Add data sanitization methods
-    
-    id: str = Field(
-        default_factory=lambda: str(uuid4()),
-        description="Unique identifier for the entry (UUID)."
-    )
-    work: str = Field(
-        ...,
-        max_length=256,
-        description="What did you work on today?"
-    )
-    struggle: str = Field(
-        ...,
-        max_length=256,
-        description="What’s one thing you struggled with today?"
-    )
-    intention: str = Field(
-        ...,
-        max_length=256,
-        description="What will you study/work on tomorrow?"
-    )
-    created_at: Optional[datetime] = Field(
-        default_factory=datetime.utcnow,
-        description="Timestamp when the entry was created."
-    )
-    updated_at: Optional[datetime] = Field(
-        default_factory=datetime.utcnow,
-        description="Timestamp when the entry was last updated."
-    )
 
-    model_config = {
-        "json_encoders": {
-            datetime: lambda v: v.isoformat()
-        }
-    }
+class EntryUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    work: str = Field(default=None, min_length=1, max_length=256)
+    struggle: str = Field(default=None, min_length=1, max_length=256)
+    intention: str = Field(default=None, min_length=1, max_length=256)
+
+
+class Entry(EntryCreate):
+    id: str = Field(default_factory=lambda: str(uuid4()))
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

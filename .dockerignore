@@ -1,0 +1,9 @@
+.git
+.env
+**/.terraform
+**/*.tfstate*
+**/__pycache__
+**/.pytest_cache
+work
+tests
+.devcontainer

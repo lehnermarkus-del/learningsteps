@@ -1,0 +1,22 @@
+prometheus:
+  prometheusSpec:
+    retention: 2h
+    resources:
+      requests: {cpu: 50m, memory: 128Mi}
+    additionalScrapeConfigs:
+      - job_name: learningsteps
+        metrics_path: /metrics
+        static_configs:
+          - targets: ['learningsteps.learningsteps.svc.cluster.local:80']
+grafana:
+  service:
+    type: ClusterIP
+  defaultDashboardsEnabled: false
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+alertmanager:
+  enabled: false
+kubeStateMetrics:
+  enabled: false
+nodeExporter:
+  enabled: false
