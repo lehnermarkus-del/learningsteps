@@ -50,6 +50,7 @@ Voraussetzungen: angemeldete Azure CLI, Terraform >= 1.7, kubectl, ausreichende 
 
 ```powershell
 az login
+./scripts/preflight.ps1
 terraform -chdir=infra-terraform init
 # terraform.tfvars.json lokal anlegen: subscription_id, admin_cidr (eigene öffentliche IPv4/32)
 terraform -chdir=infra-terraform plan -out=deployment.tfplan
@@ -107,5 +108,6 @@ Die Dateien in `docs/` enthalten tatsächlich ausgeführte Prüfungen. Erfolgrei
 - [AKS Terraform-Ressource](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs/resources/kubernetes_cluster)
 - [Key Vault CSI und Workload Identity](https://learn.microsoft.com/en-us/azure/aks/csi-secrets-store-identity-access)
 - [AKS-Preise](https://azure.microsoft.com/en-us/pricing/details/kubernetes-service/)
+
 
 

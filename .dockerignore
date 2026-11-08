@@ -2,6 +2,11 @@
 .env
 **/.terraform
 **/*.tfstate*
+**/*.tfvars*
+**/*.tfplan
+.kubeconfig
+rendered
+docs
 **/__pycache__
 **/.pytest_cache
 work

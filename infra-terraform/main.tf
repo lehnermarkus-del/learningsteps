@@ -25,7 +25,7 @@ variable "admin_cidr" {
     error_message = "Eine einzelne IPv4 als /32 angeben."
   }
 }
-variable "node_size" { default = "Standard_D2s_v5" }
+variable "node_size" { default = "Standard_D2s_v7" }
 resource "random_string" "suffix" {
   length  = 6
   special = false
@@ -212,6 +212,9 @@ output "deployment" {
     app_client_id  = azurerm_user_assigned_identity.app.client_id
   }
 }
+
+
+
 
 
 
