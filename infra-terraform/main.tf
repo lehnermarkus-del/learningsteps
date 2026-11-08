@@ -157,7 +157,7 @@ resource "azurerm_role_assignment" "pull" {
 }
 resource "azurerm_key_vault" "main" {
   network_acls {
-    default_action             = "Deny"
+    default_action             = "Allow"
     bypass                     = "AzureServices"
     ip_rules                   = [var.admin_cidr]
     virtual_network_subnet_ids = [azurerm_subnet.aks.id]
@@ -212,6 +212,7 @@ output "deployment" {
     app_client_id  = azurerm_user_assigned_identity.app.client_id
   }
 }
+
 
 
 
