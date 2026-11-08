@@ -46,3 +46,15 @@ Ein zusätzlicher lokaler Test mit vorübergehendem Stoppen der Datenbank wurde 
 `terraform destroy` entfernte am 8. November 2026 alle 27 Ressourcen des ersten vollständigen Aufbaus. Der Terraform-State war danach leer. Anschließend lief `terraform apply` mit unverändertem Infrastrukturcode erfolgreich durch und erstellte die Umgebung erneut. Start- und Abschlusszeiten stehen in `recovery-cycle.txt`; `recovery-code-integrity.txt` enthält den unveränderten Git-Tree des Infrastrukturverzeichnisses.
 
 Für den anschließenden CD-Nachweis wurde ausschließlich die Anwendung sichtbar erweitert: `/health/live` nennt nun zusätzlich den Dienst `LearningSteps Evolution`. Die erneute Bereitstellung wird über GitHub Actions ausgelöst und danach gegen die neue öffentliche IP geprüft.
+
+## Ergebnis nach dem Wiederaufbau
+
+[GitHub-Run 42492096888](https://github.com/lehnermarkus-del/learningsteps/actions/runs/42492096888) ist vollständig erfolgreich, einschließlich beider Prüf- und Deployment-Jobs sowie der Rücknahme der temporären Runner-IP.
+
+Der erneute Smoke-Test bestand am 8. November 2026 um 15:58 Uhr (Europe/Berlin). `/health/live` lieferte den neuen Dienstnamen `LearningSteps Evolution` und Commit `ede2e14f60eabc9fbbd6a87f9e3bc5d717cfc251`. Damit ist die bewusst geänderte Anwendung nach einem GitHub-Push automatisch auf der neu aufgebauten Azure-Umgebung angekommen (`azure-deployment-recovery.json`, `azure-smoke-recovery.txt`).
+
+Prometheus meldete erneut zwei aktuelle Scrape-Targets als `up`, ohne Fehler. Der HPA erfasste erneut 2 % CPU bei einem Ziel von 70 % und zwei Replikaten (`monitoring-recovery-targets.json`, `hpa-recovery.txt`). Auch Prometheus und Grafana wurden im neuen Cluster wieder installiert.
+
+Nach dem erfolgreichen unveränderten Wiederaufbau wurde der von PostgreSQL automatisch ergänzte Microsoft.Storage-Endpunkt des Datenbank-Subnetzes ausdrücklich in den Code übernommen. Ein anschließender Terraform-Plan bestätigte erneut vollständige Übereinstimmung ohne Änderungen an Azure (`recovery-no-drift.txt`). Der Wiederherstellungsnachweis selbst bezieht sich auf den unveränderten Infrastrukturcode im Commit ede2e14; die Ergänzung erfolgte danach.
+
+Die Cloud-Testumgebung wird anschließend endgültig abgebaut und automatisches Deployment deaktiviert. Die lokale Compose-Vorschau bleibt für die Prüfung verfügbar. Alle Nachweise stammen aus real ausgeführten Prüfungen; hohe Last oder tatsächliches HPA-Hochskalieren wurden nicht getestet.

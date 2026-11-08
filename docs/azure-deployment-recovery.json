@@ -1,0 +1,11 @@
+{
+  "version_matches": true,
+  "timestamp": "2026-11-08T15:58:26.2080395+01:00",
+  "expected_commit": "ede2e14f60eabc9fbbd6a87f9e3bc5d717cfc251",
+  "new_service_field_verified": true,
+  "live": {
+    "status": "ok",
+    "service": "LearningSteps Evolution",
+    "version": "ede2e14f60eabc9fbbd6a87f9e3bc5d717cfc251"
+  }
+}

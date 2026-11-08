@@ -1,11 +1,1 @@
-{
-  "registry": "acrlsevon9f2db",
-  "enabled": true,
-  "cluster": "aks-lsevo-n9f2db",
-  "subscription_id": "41ccfe7e-d1e6-4938-8347-85cb17f02064",
-  "client_id": "db62024a-9305-4185-9d1f-d2e82c6c3597",
-  "app_client_id": "2d2624e5-c2b4-4170-a04c-be7ed8f07834",
-  "tenant": "c0531484-50fa-4ff2-97df-b1f2d4810603",
-  "resource_group": "rg-lsevo-n9f2db",
-  "vault": "kv-lsevo-n9f2db"
-}
+{"enabled": false}

@@ -1,0 +1,4 @@
+Prüfzeitpunkt: 2026-11-08T16:04:04.9510705+01:00
+terraform plan -detailed-exitcode: 0
+No changes. Your infrastructure matches the configuration.
+Nach dem erfolgreichen unveränderten Wiederaufbau wurde der von PostgreSQL automatisch ergänzte Microsoft.Storage-Endpunkt im DB-Subnetz explizit in den Code übernommen. Es waren dafür keine Änderungen an Azure-Ressourcen notwendig.
