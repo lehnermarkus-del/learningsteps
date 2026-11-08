@@ -71,6 +71,7 @@ jobs:
           set -euo pipefail
           ADMIN_CIDR="$(az aks show -g "$RG" -n "$AKS" --query apiServerAccessProfile.authorizedIpRanges -o tsv | paste -sd, -)"
           test -n "$ADMIN_CIDR"
+          echo "::add-mask::$ADMIN_CIDR"
           echo "ADMIN_CIDR=$ADMIN_CIDR" >> "$GITHUB_ENV"
           RUNNER_CIDR="$(curl -fsS https://api.ipify.org)/32"
           echo "RUNNER_CIDR=$RUNNER_CIDR" >> "$GITHUB_ENV"

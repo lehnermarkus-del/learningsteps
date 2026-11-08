@@ -40,3 +40,9 @@ Der Pod `learningsteps-b9d46958f-sp9xp` wurde für einen kontrollierten Selbsthe
 Der HPA erfasste 2 % CPU bei einem Ziel von 70 %, mit 2–4 konfigurierten Replikaten (`hpa-first.txt`). Prometheus meldete beide aktuellen API-Targets als `up`, ohne Scrape-Fehler. Das deutsche Grafana-Dashboard mit vier Panels war in AKS abrufbar (`grafana-aks-dashboard.json`).
 
 Ein zusätzlicher lokaler Test mit vorübergehendem Stoppen der Datenbank wurde von der automatischen Sicherheitsprüfung blockiert; eine genauere Begründung wurde nicht angegeben. Er wurde nicht durchgeführt. Der stateless Kubernetes-Pod-Test war erfolgreich, und die automatisierten Readiness-Tests prüfen HTTP 503 bei einem Datenbankfehler.
+
+## Vollständiger Wiederherstellungszyklus
+
+`terraform destroy` entfernte am 8. November 2026 alle 27 Ressourcen des ersten vollständigen Aufbaus. Der Terraform-State war danach leer. Anschließend lief `terraform apply` mit unverändertem Infrastrukturcode erfolgreich durch und erstellte die Umgebung erneut. Start- und Abschlusszeiten stehen in `recovery-cycle.txt`; `recovery-code-integrity.txt` enthält den unveränderten Git-Tree des Infrastrukturverzeichnisses.
+
+Für den anschließenden CD-Nachweis wurde ausschließlich die Anwendung sichtbar erweitert: `/health/live` nennt nun zusätzlich den Dienst `LearningSteps Evolution`. Die erneute Bereitstellung wird über GitHub Actions ausgelöst und danach gegen die neue öffentliche IP geprüft.

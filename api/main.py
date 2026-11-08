@@ -53,7 +53,7 @@ async def metrics(request, call_next):
 
 @app.get("/health/live", tags=["Betrieb"], summary="Prozessstatus prüfen")
 async def live():
-    return {"status": "ok", "version": app.version}
+    return {"status": "ok", "service": "LearningSteps Evolution", "version": app.version}
 
 
 @app.get("/health/ready", tags=["Betrieb"], summary="Datenbankbereitschaft prüfen")

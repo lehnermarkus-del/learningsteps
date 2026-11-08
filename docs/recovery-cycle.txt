@@ -1,0 +1,4 @@
+Abbau vollständig: 2026-11-08T15:42:49.5069406+01:00
+Terraform-State: 0 Ressourcen
+Anschließend terraform apply mit unverändertem Infrastrukturcode gestartet.
+Neuaufbau erfolgreich: 2026-11-08T15:54:06.5414210+01:00
