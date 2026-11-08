@@ -32,7 +32,7 @@ async def lifespan(app):
     await app.state.pool.close()
 
 
-app = FastAPI(title="LearningSteps API", description="Lerntagebuch mit automatisiertem Cloud-Betrieb", lifespan=lifespan)
+app = FastAPI(title="LearningSteps API", description="Lerntagebuch mit automatisiertem Cloud-Betrieb", lifespan=lifespan, version=os.getenv("APP_VERSION", "1.0.0"))
 app.include_router(journal_router)
 
 
@@ -51,12 +51,12 @@ async def metrics(request, call_next):
             LATENCY.labels(route).observe(time.perf_counter() - started)
 
 
-@app.get("/health/live", tags=["Betrieb"])
+@app.get("/health/live", tags=["Betrieb"], summary="Prozessstatus prüfen")
 async def live():
-    return {"status": "ok"}
+    return {"status": "ok", "version": app.version}
 
 
-@app.get("/health/ready", tags=["Betrieb"])
+@app.get("/health/ready", tags=["Betrieb"], summary="Datenbankbereitschaft prüfen")
 async def ready():
     try:
         await app.state.pool.fetchval("SELECT 1 FROM entries LIMIT 1", timeout=3)
@@ -80,3 +80,4 @@ async def prometheus():
 @app.get("/", include_in_schema=False)
 def root():
     return RedirectResponse(url="/docs")
+

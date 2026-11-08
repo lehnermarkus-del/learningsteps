@@ -6,14 +6,27 @@ prometheus:
     additionalScrapeConfigs:
       - job_name: learningsteps
         metrics_path: /metrics
-        static_configs:
-          - targets: ['learningsteps.learningsteps.svc.cluster.local:80']
+        kubernetes_sd_configs:
+          - role: endpoints
+            namespaces:
+              names: [learningsteps]
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_service_name]
+            action: keep
+            regex: learningsteps
+          - source_labels: [__meta_kubernetes_endpoint_port_name]
+            action: keep
+            regex: http
 grafana:
   service:
     type: ClusterIP
   defaultDashboardsEnabled: false
   resources:
     requests: {cpu: 50m, memory: 128Mi}
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
 alertmanager:
   enabled: false
 kubeStateMetrics:

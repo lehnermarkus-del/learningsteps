@@ -15,7 +15,7 @@ provider "azurerm" {
 }
 data "azurerm_client_config" "current" {}
 variable "subscription_id" { type = string }
-variable "location" { default = "germanywestcentral" }
+variable "location" { default = "westeurope" }
 variable "prefix" { default = "lsevo" }
 variable "admin_cidr" {
   type        = string
@@ -212,6 +212,7 @@ output "deployment" {
     app_client_id  = azurerm_user_assigned_identity.app.client_id
   }
 }
+
 
 
 
