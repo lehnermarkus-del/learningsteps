@@ -35,6 +35,57 @@ docker compose up -d --build
 
 Swagger UI: http://localhost:8000/docs. Die Datenbank ist lokal nicht nach außen veröffentlicht. `docker compose down` beendet die Container; das Datenvolume bleibt bestehen. Es werden ausschließlich synthetische Testdaten verwendet.
 
+## KI-Zusammenfassung (DEVSECOPS 15, Übung 2)
+
+Unter `http://127.0.0.1:8000/` gibt es jetzt eine Notizenoberfläche. Der Button
+„KI-Zusammenfassung erstellen“ ruft `POST /ai/summary` im eigenen FastAPI-Backend auf.
+Der Server lädt alle gespeicherten Notizen aus PostgreSQL und ruft serverseitig das
+konfigurierte Azure-OpenAI-Modell auf. Die Antwort enthält Zusammenfassung, Anzahl
+der verarbeiteten Notizen und Modellnamen. Der Browser ruft Azure nicht direkt auf.
+
+Die bestehende App hat kein Benutzerkonto-Konzept: Alle Notizen gehören zur lokalen
+Einzelbenutzer-Instanz. Dieses Feature ist daher ausdrücklich nur für diese auf
+`127.0.0.1` gebundene Übungsumgebung vorgesehen. Vor Mehrbenutzer- oder öffentlichem
+Betrieb sind Anmeldung, Autorisierung, nutzergebundene DB-Abfragen, TLS und
+benutzerbezogene Quoten notwendig. Ein vom Client übergebener Benutzername wäre
+keine sichere Zugriffskontrolle.
+
+Den bestehenden Foundry-Schlüssel ausschließlich in einer lokal zugriffsbeschränkten
+Datei **außerhalb des Repositorys** ablegen. In `.env` nur den Dateipfad sowie den
+Azure-Endpunkt und Bereitstellungsnamen gemäß `.env-sample` konfigurieren. `.env`
+ist git-ignoriert; Docker Compose bindet die Schlüsseldatei als schreibgeschütztes
+Secret ein. Sie wird weder in das Image kopiert noch als API-Antwort ausgeliefert.
+Compose-Secrets sind lokale Dateimounts, kein verschlüsselter Secret-Store: Der
+Host und Docker-Administratoren müssen vertrauenswürdig sein. Für Azure-Betrieb
+Key Vault mit Workload Identity/CSI nutzen und die Datei über
+`AZURE_OPENAI_API_KEY_FILE` bereitstellen; keine Schlüssel in Kubernetes-YAML committen.
+
+```powershell
+docker compose -p learningsteps-ai -f compose.yaml -f compose.ai.yaml up -d --build
+# Oberfläche: http://127.0.0.1:8000/
+# Beenden ohne Löschen der Notizen:
+docker compose -p learningsteps-ai -f compose.yaml -f compose.ai.yaml stop
+```
+
+Sicherheitsmaßnahmen: fester serverseitiger HTTPS-Azure-Endpunkt, TLS-Prüfung,
+keine Weiterleitungen, Zeitlimit, begrenzte Eingabe-/Ausgabegröße, nur ein laufender
+KI-Aufruf pro Prozess, keine Übernahme vertraulicher Upstream-Fehler in Antworten.
+Ein eigener Request-Header verhindert fremde HTML-Formular-Aufrufe; er ersetzt keine
+Benutzeranmeldung. CORS wird nicht freigeschaltet. Notizen und Modellantwort werden
+im Browser mit `textContent` dargestellt, niemals als ausführbares HTML. Notizen
+werden im Prompt als nicht vertrauenswürdige Daten abgegrenzt. Es gibt keine Tools.
+Leere oder zu große Notizsammlungen werden abgewiesen, statt unbemerkt gekürzt.
+Modellfehler und unvollständige Antworten werden als Fehler angezeigt. Die
+Zusammenfassung wird nicht gecacht oder in der Datenbank gespeichert.
+
+Der Button weist darauf hin, dass die Inhalte an Azure gesendet werden. Für die
+Abgabe ausschließlich selbst erzeugte synthetische Notizen verwenden. Eine
+KI-Ausgabe kann falsch sein und muss geprüft werden.
+
+Automatische Tests prüfen vollständige Notizübernahme, Fehlerbereinigung,
+Eingabegrenzen, Endpunktvalidierung und den Backend-Routenfluss. Die Azure-Schnittstelle
+folgt der [offiziellen v1-Referenz](https://learn.microsoft.com/en-us/rest/api/aifoundry/azureopenai/chat).
+
 ## API und Betrieb
 
 - CRUD-Endpunkte unter `/entries`; Eingaben werden validiert, unbekannte und interne Felder abgewiesen.

@@ -1,0 +1,12 @@
+# Optional local AI integration. Key file stays outside the image and repository.
+services:
+  api:
+    environment:
+      AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:?Azure endpoint required}
+      AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-gpt-5-mini}
+      AZURE_OPENAI_API_KEY_FILE: /run/secrets/azure_openai_key
+    secrets:
+      - azure_openai_key
+secrets:
+  azure_openai_key:
+    file: ${AZURE_OPENAI_API_KEY_FILE:?Path to local key file required}

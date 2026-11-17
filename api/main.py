@@ -7,9 +7,11 @@ from pathlib import Path
 import asyncpg
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Response
-from fastapi.responses import RedirectResponse
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from prometheus_client import Counter, Gauge, Histogram, CONTENT_TYPE_LATEST, generate_latest
 from routers.journal_router import router as journal_router
+from routers.summary_router import router as summary_router
 
 load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
@@ -34,6 +36,8 @@ async def lifespan(app):
 
 app = FastAPI(title="LearningSteps API", description="Lerntagebuch mit automatisiertem Cloud-Betrieb", lifespan=lifespan, version=os.getenv("APP_VERSION", "1.0.0"))
 app.include_router(journal_router)
+app.include_router(summary_router)
+app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
 
 
 @app.middleware("http")
@@ -79,5 +83,5 @@ async def prometheus():
 
 @app.get("/", include_in_schema=False)
 def root():
-    return RedirectResponse(url="/docs")
+    return FileResponse(Path(__file__).parent / "static" / "index.html")
 
